@@ -1,3 +1,3 @@
 pub async fn format() -> String {
-    return "Hello, World!".to_string();
+    "Hello, World!".to_string()
 }

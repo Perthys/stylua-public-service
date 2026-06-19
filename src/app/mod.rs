@@ -11,5 +11,5 @@ pub fn build() -> Router {
         .route("/healthz", get(healthz_route))
         .merge(built_routes);
 
-    return router;
+    router
 }
