@@ -9,3 +9,4 @@ dotenvy = "0.15.7"
 serde = { version = "1.0.228", features = ["derive"] }
 stylua = { version = "2.5.2", features = ["luau"] }
 tokio = { version = "1.52.3", features = ["full"] }
+tower-http = { version = "0.7.0", features = ["limit", "timeout", "catch-panic"] }

@@ -23,14 +23,17 @@ pub async fn format(
     let max_size = var("MAX_CODE_SIZE")
         .ok()
         .and_then(|s| s.parse::<usize>().ok())
-        .unwrap_or(10 * 1024); 
+        .unwrap_or(10 * 1024);
 
     let FormatRequest { code, config } = payload;
 
     if code.len() > max_size {
         return Err((
             StatusCode::BAD_REQUEST,
-            format!("Code size exceeds the maximum allowed size of {} bytes", max_size),
+            format!(
+                "Code size exceeds the maximum allowed size of {} bytes",
+                max_size
+            ),
         ));
     }
 
