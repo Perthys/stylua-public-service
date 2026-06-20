@@ -34,6 +34,9 @@ pub async fn format(
     match result {
         Ok(Ok(response)) => Ok(response),
         Ok(Err(e)) => Err(e),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+        Err(e) => {
+            println!("Error in formatting task: {}", e);
+            Err((StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string()))
+        }
     }
 }
