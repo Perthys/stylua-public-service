@@ -13,7 +13,7 @@ pub struct FormatRequest {
 pub struct FormatResponse {
     formatted: String,
     changed: bool,
-    
+
 }
 
 pub async fn format(
@@ -21,11 +21,19 @@ pub async fn format(
 ) -> Result<Json<FormatResponse>, (StatusCode, String)> {
     let FormatRequest { code, config } = payload;
 
-    match format_code(&code, config, None, OutputVerification::None) {
-        Ok(formatted) => {
-            let changed = formatted != code;
-            Ok(Json(FormatResponse { formatted, changed }))
+    let result = tokio::task::spawn_blocking(move || {
+        match format_code(&code, config, None, OutputVerification::None) {
+            Ok(formatted) => {
+                let changed = formatted != code;
+                Ok(Json(FormatResponse { formatted, changed }))
+            }
+            Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
         }
-        Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
+    }).await;
+
+    match result {
+        Ok(Ok(response)) => Ok(response),
+        Ok(Err(e)) => Err(e),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
     }
 }
