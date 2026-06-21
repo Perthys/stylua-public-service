@@ -9,4 +9,6 @@ serde = { version = "1.0.228", features = ["derive"] }
 stylua = { version = "2.5.2", features = ["luau"] }
 tokio = { version = "1.52.3", features = ["full"] }
 tower-http = { version = "0.7.0", features = ["limit", "timeout", "catch-panic"] }
+redis = { version = "1.0.4", features = ["tokio-comp", "connection-manager"] }
+uuid = { version = "1.11.0", features = ["v4", "serde"] }
 shared = { path = "crates/shared" }
