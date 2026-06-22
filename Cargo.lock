@@ -1826,7 +1826,10 @@ dependencies = [
 name = "worker"
 version = "0.1.0"
 dependencies = [
+ "dotenvy",
+ "serde_json",
  "shared",
+ "stylua",
  "tokio",
 ]
 

@@ -1,6 +1,6 @@
 ---@diagnostic disable: undefined-global
 local call = redis.call
-local now = redis.call("TIME")[1]
+local now = call("TIME")[1]
 
 local function check_if_acquirable(permits_key, ttl, limit, permit_id)
 	call("ZREMRANGEBYSCORE", permits_key, "-inf", now)
