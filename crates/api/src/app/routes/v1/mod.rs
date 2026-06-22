@@ -2,8 +2,8 @@ mod format;
 
 use axum::{Router, routing::post};
 
-pub fn build() -> axum::Router {
-    let built_format = format::format;
+use crate::state::AppState;
 
-    Router::new().route("/format", post(built_format))
+pub fn build() -> Router<AppState> {
+    Router::new().route("/format", post(format::format))
 }

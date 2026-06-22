@@ -1,8 +1,10 @@
 mod v1;
 
-use axum::routing::Router;
+use axum::Router;
 
-pub fn build() -> Router {
+use crate::state::AppState;
+
+pub fn build() -> Router<AppState> {
     let built_v1 = v1::build();
 
     Router::new().nest("/v1", built_v1)
