@@ -4,10 +4,13 @@ use uuid::Uuid;
 pub type Store = ConnectionManager;
 
 const QUEUE_KEY: &str = "format:queue";
+const PROCESSING_KEY: &str = "format:processing";
 const PERMITS_KEY: &str = "format:permits";
 const SESSION_TTL: usize = 300;
 
 const ACQUIRE_SCRIPT: &str = include_str!("scripts/acquire-script.lua");
+const CONSUME_SCRIPT: &str = include_str!("scripts/consume-script.lua");
+const REAP_SCRIPT: &str = include_str!("scripts/reap-script.lua");
 
 fn session_key(session_id: &str) -> String {
     format!("session:{session_id}")
@@ -26,10 +29,31 @@ pub async fn enqueue(connection: &mut Store, job: &str) -> redis::RedisResult<()
         .await
 }
 
-pub async fn dequeue(connection: &mut Store) -> redis::RedisResult<Option<String>> {
-    redis::cmd("RPOP")
-        .arg(QUEUE_KEY)
+pub async fn consume(
+    connection: &mut Store,
+    visibility: usize,
+) -> redis::RedisResult<Option<String>> {
+    redis::Script::new(CONSUME_SCRIPT)
+        .key(QUEUE_KEY)
+        .key(PROCESSING_KEY)
+        .arg(visibility as u64)
+        .invoke_async(connection)
+        .await
+}
+
+pub async fn ack(connection: &mut Store, job: &str) -> redis::RedisResult<()> {
+    redis::cmd("ZREM")
+        .arg(PROCESSING_KEY)
+        .arg(job)
         .query_async(connection)
+        .await
+}
+
+pub async fn reap(connection: &mut Store) -> redis::RedisResult<usize> {
+    redis::Script::new(REAP_SCRIPT)
+        .key(QUEUE_KEY)
+        .key(PROCESSING_KEY)
+        .invoke_async(connection)
         .await
 }
 

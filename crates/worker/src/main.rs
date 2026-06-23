@@ -10,6 +10,8 @@ use tokio::time::timeout;
 
 const POLL_INTERVAL: Duration = Duration::from_millis(200);
 const FORMAT_TIMEOUT: Duration = Duration::from_secs(5);
+const VISIBILITY_TIMEOUT: usize = 30;
+const REAP_INTERVAL: Duration = Duration::from_secs(10);
 
 #[tokio::main]
 async fn main() {
@@ -22,14 +24,30 @@ async fn main() {
 
     println!("worker: I AM ALIVE");
 
+    tokio::spawn(reaper_loop(connection.clone()));
+
     loop {
-        match store::dequeue(&mut connection).await {
-            Ok(Some(payload)) => process(&mut connection, &payload).await,
+        match store::consume(&mut connection, VISIBILITY_TIMEOUT).await {
+            Ok(Some(payload)) => {
+                process(&mut connection, &payload).await;
+                store::ack(&mut connection, &payload).await.ok();
+            }
             Ok(None) => tokio::time::sleep(POLL_INTERVAL).await,
             Err(error) => {
-                eprintln!("worker: dequeue error: {error}");
+                eprintln!("worker: consume error: {error}");
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
+        }
+    }
+}
+
+async fn reaper_loop(mut connection: Store) {
+    loop {
+        tokio::time::sleep(REAP_INTERVAL).await;
+        match store::reap(&mut connection).await {
+            Ok(reaped) if reaped > 0 => eprintln!("worker: requeued {reaped} stuck job(s)"),
+            Ok(_) => {}
+            Err(error) => eprintln!("worker: reap error: {error}"),
         }
     }
 }
