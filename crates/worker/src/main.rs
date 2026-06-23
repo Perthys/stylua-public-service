@@ -8,10 +8,12 @@ use shared::store::{self, Store};
 use stylua_lib::{Config, OutputVerification, format_code};
 use tokio::time::timeout;
 
-const POLL_INTERVAL: Duration = Duration::from_millis(200);
-const FORMAT_TIMEOUT: Duration = Duration::from_secs(5);
-const VISIBILITY_TIMEOUT: usize = 30;
-const REAP_INTERVAL: Duration = Duration::from_secs(10);
+fn env_u64(key: &str, default: u64) -> u64 {
+    var(key)
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(default)
+}
 
 #[tokio::main]
 async fn main() {
@@ -22,17 +24,23 @@ async fn main() {
         .await
         .expect("redis didn't connect");
 
+    let visibility_timeout = env_u64("VISIBILITY_TIMEOUT_SECS", 30) as usize;
+
+    let poll_interval = Duration::from_millis(env_u64("POLL_INTERVAL_MS", 200));
+    let format_timeout = Duration::from_secs(env_u64("FORMAT_TIMEOUT_SECS", 5));
+    let reap_interval = Duration::from_secs(env_u64("REAP_INTERVAL_SECS", 10));
+
     println!("worker: I AM ALIVE");
 
-    tokio::spawn(reaper_loop(connection.clone()));
+    tokio::spawn(reaper_loop(connection.clone(), reap_interval));
 
     loop {
-        match store::consume(&mut connection, VISIBILITY_TIMEOUT).await {
+        match store::consume(&mut connection, visibility_timeout).await {
             Ok(Some(payload)) => {
-                process(&mut connection, &payload).await;
+                process(&mut connection, &payload, format_timeout).await;
                 store::ack(&mut connection, &payload).await.ok();
             }
-            Ok(None) => tokio::time::sleep(POLL_INTERVAL).await,
+            Ok(None) => tokio::time::sleep(poll_interval).await,
             Err(error) => {
                 eprintln!("worker: consume error: {error}");
                 tokio::time::sleep(Duration::from_secs(1)).await;
@@ -41,9 +49,9 @@ async fn main() {
     }
 }
 
-async fn reaper_loop(mut connection: Store) {
+async fn reaper_loop(mut connection: Store, reap_interval: Duration) {
     loop {
-        tokio::time::sleep(REAP_INTERVAL).await;
+        tokio::time::sleep(reap_interval).await;
         match store::reap(&mut connection).await {
             Ok(reaped) if reaped > 0 => eprintln!("worker: requeued {reaped} stuck job(s)"),
             Ok(_) => {}
@@ -52,7 +60,7 @@ async fn reaper_loop(mut connection: Store) {
     }
 }
 
-async fn process(connection: &mut Store, payload: &str) {
+async fn process(connection: &mut Store, payload: &str, format_timeout: Duration) {
     let job: Job = match serde_json::from_str(payload) {
         Ok(job) => job,
         Err(error) => {
@@ -66,14 +74,14 @@ async fn process(connection: &mut Store, payload: &str) {
         .await
         .ok();
 
-    let outcome = format_job(job.code, job.config).await;
+    let outcome = format_job(job.code, job.config, format_timeout).await;
 
     store::set_session(connection, &job.session_id, &outcome.to_string())
         .await
         .ok();
 }
 
-async fn format_job(code: String, config: Value) -> Value {
+async fn format_job(code: String, config: Value, format_timeout: Duration) -> Value {
     let task = tokio::task::spawn_blocking(move || {
         let config: Config = serde_json::from_value(config).unwrap_or_default();
         format_code(&code, config, None, OutputVerification::None)
@@ -84,7 +92,7 @@ async fn format_job(code: String, config: Value) -> Value {
             .map_err(|error| error.to_string())
     });
 
-    match timeout(FORMAT_TIMEOUT, task).await {
+    match timeout(format_timeout, task).await {
         Ok(Ok(Ok((formatted, changed)))) => {
             json!({ "status": "completed", "formatted": formatted, "changed": changed })
         }

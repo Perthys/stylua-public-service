@@ -5,7 +5,8 @@ use std::time::Duration;
 
 use axum::{Router, http::StatusCode, routing::get};
 use tower_http::{
-    catch_panic::CatchPanicLayer, limit::RequestBodyLimitLayer, timeout::TimeoutLayer,
+    catch_panic::CatchPanicLayer, cors::CorsLayer, limit::RequestBodyLimitLayer,
+    timeout::TimeoutLayer,
 };
 
 use crate::state::AppState;
@@ -23,5 +24,6 @@ pub fn build(state: AppState) -> Router {
             Duration::from_secs(5),
         ))
         .layer(CatchPanicLayer::new())
+        .layer(CorsLayer::permissive())
         .with_state(state)
 }
